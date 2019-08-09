@@ -3,6 +3,7 @@ package cos418_hw1_1
 import (
 	"bufio"
 	"io"
+	"os"
 	"strconv"
 )
 
@@ -10,8 +11,11 @@ import (
 // You should only output to `out` once.
 // Do NOT modify function signature.
 func sumWorker(nums chan int, out chan int) {
-	// TODO: implement me
-	// HINT: use for loop over `nums`
+	var sum int
+	for v := range nums {
+		sum += v
+	}
+	out <- sum
 }
 
 // Read integers from the file `fileName` and return sum of all values.
@@ -20,10 +24,28 @@ func sumWorker(nums chan int, out chan int) {
 // You should use `checkError` to handle potential errors.
 // Do NOT modify function signature.
 func sum(num int, fileName string) int {
+	nums := make(chan int)
+	out := make(chan int)
+	for i := 0; i < num; i++ {
+		go sumWorker(nums, out)
+	}
+	f, err := os.Open(fileName)
+	checkError(err)
+	defer f.Close()
+	vals, err := readInts(f)
+	checkError(err)
+	for _, v := range vals {
+		nums <- v
+	}
+	close(nums)
+	var sum int
+	for i := 0; i < num; i++ {
+		sum += <-out
+	}
 	// TODO: implement me
 	// HINT: use `readInts` and `sumWorkers`
 	// HINT: used buffered channels for splitting numbers between workers
-	return 0
+	return sum
 }
 
 // Read a list of integers separated by whitespace from `r`.
@@ -35,7 +57,8 @@ func readInts(r io.Reader) ([]int, error) {
 	scanner.Split(bufio.ScanWords)
 	var elems []int
 	for scanner.Scan() {
-		val, err := strconv.Atoi(scanner.Text())
+		text := scanner.Text()
+		val, err := strconv.Atoi(text)
 		if err != nil {
 			return elems, err
 		}
