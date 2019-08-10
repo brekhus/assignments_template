@@ -19,11 +19,11 @@ const maxDelay = 5
 // to pass tokens to each other, and collecting the snapshot state after the process
 // has terminated.
 type Simulator struct {
-	time           int
-	nextSnapshotId int
-	servers        map[string]*Server // key = server ID
-	logger         *Logger
-	// TODO: ADD MORE FIELDS HERE
+	time                int
+	nextSnapshotId      int
+	servers             map[string]*Server // key = server ID
+	logger              *Logger
+	snapshotsInProgress *SyncMap
 }
 
 func NewSimulator() *Simulator {
@@ -32,6 +32,7 @@ func NewSimulator() *Simulator {
 		0,
 		make(map[string]*Server),
 		NewLogger(),
+		NewSyncMap(),
 	}
 }
 
@@ -107,20 +108,44 @@ func (sim *Simulator) StartSnapshot(serverId string) {
 	snapshotId := sim.nextSnapshotId
 	sim.nextSnapshotId++
 	sim.logger.RecordEvent(sim.servers[serverId], StartSnapshot{serverId, snapshotId})
-	// TODO: IMPLEMENT ME
+	sim.snapshotsInProgress.Store(snapshotId, make(chan string))
+	sim.servers[serverId].StartSnapshot(snapshotId)
 }
 
 // Callback for servers to notify the simulator that the snapshot process has
 // completed on a particular server
 func (sim *Simulator) NotifySnapshotComplete(serverId string, snapshotId int) {
 	sim.logger.RecordEvent(sim.servers[serverId], EndSnapshot{serverId, snapshotId})
-	// TODO: IMPLEMENT ME
+	o, ok := sim.snapshotsInProgress.Load(snapshotId)
+	if !ok {
+		panic(snapshotId)
+	}
+	ch := o.(chan string)
+	ch <- serverId
 }
 
 // Collect and merge snapshot state from all the servers.
 // This function blocks until the snapshot process has completed on all servers.
 func (sim *Simulator) CollectSnapshot(snapshotId int) *SnapshotState {
-	// TODO: IMPLEMENT ME
 	snap := SnapshotState{snapshotId, make(map[string]int), make([]*SnapshotMessage, 0)}
+	o, ok := sim.snapshotsInProgress.Load(snapshotId)
+	if !ok {
+		panic(snapshotId)
+	}
+	ch, ok := o.(chan string)
+	if !ok {
+		panic(snapshotId)
+	}
+	for i := 0; i < len(sim.servers); i++ {
+		server := <-ch
+		o, ok := sim.servers[server].snapshots.Load(snapshotId)
+		if !ok {
+			panic(server)
+		}
+		serverSnap := o.(*Snapshot)
+		sim.servers[server].snapshots.Delete(snapshotId)
+		snap.messages = append(snap.messages, serverSnap.messages...)
+		snap.tokens[server] = serverSnap.tokens
+	}
 	return &snap
 }

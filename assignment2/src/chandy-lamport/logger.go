@@ -16,7 +16,7 @@ type Logger struct {
 }
 
 type LogEvent struct {
-	serverId     string
+	serverId string
 	// Number of tokens before execution of event
 	serverTokens int
 	event        interface{}
