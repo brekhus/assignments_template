@@ -16,26 +16,28 @@ func doReduce(
 	nMap int, // the number of map tasks that were run ("M" in the paper)
 	reduceF func(key string, values []string) string,
 ) {
-	inF, err := os.Open(reduceName(jobName, nMap, reduceTaskNumber))
-	checkError(err)
-	defer inF.Close()
-
 	outF, err := os.Create(mergeName(jobName, reduceTaskNumber))
 	checkError(err)
 	defer outF.Close()
 
-	decoder := json.NewDecoder(inF)
 	keys := make(map[string][]string)
-	for {
-		var kv KeyValue
-		err := decoder.Decode(&kv)
-		if err != nil {
-			if err != io.EOF {
-				checkError(err)
+	for i := 0; i < nMap; i++ {
+		inF, err := os.Open(reduceName(jobName, i, reduceTaskNumber))
+		checkError(err)
+		defer inF.Close()
+
+		decoder := json.NewDecoder(inF)
+		for {
+			var kv KeyValue
+			err := decoder.Decode(&kv)
+			if err != nil {
+				if err != io.EOF {
+					checkError(err)
+				}
+				break
 			}
-			break
+			keys[kv.Key] = append(keys[kv.Key], kv.Value)
 		}
-		keys[kv.Key] = append(keys[kv.Key], kv.Value)
 	}
 
 	encoder := json.NewEncoder(outF)
