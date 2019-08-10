@@ -2,7 +2,6 @@ package mapreduce
 
 import (
 	"encoding/json"
-	"fmt"
 	"hash/fnv"
 	"io/ioutil"
 	"os"
@@ -25,7 +24,6 @@ func doMap(
 	var writers []*os.File
 	for i := 0; i < nReduce; i++ {
 		outF, err := os.Create(reduceName(jobName, mapTaskNumber, i))
-		fmt.Printf("create: %s\n", reduceName(jobName, mapTaskNumber, i))
 		checkError(err)
 		writers = append(writers, outF)
 	}
